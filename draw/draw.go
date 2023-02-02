@@ -5,9 +5,11 @@ package draw
 import (
 	"fmt"
 	"io"
+	"sort"
 	"text/template"
 
 	"github.com/dominikbraun/graph"
+	"golang.org/x/exp/constraints"
 )
 
 // ToDo: This template should be simplified and split into multiple templates.
@@ -65,6 +67,33 @@ func DOT[K comparable, T any](g graph.Graph[K, T], w io.Writer) error {
 	}
 
 	return renderDOT(w, desc)
+}
+
+// DOTStable works like DOT, but writes representable result
+func DOTStable[K constraints.Ordered, T any](g graph.Graph[K, T], w io.Writer) error {
+	desc, err := generateDOT(g)
+	if err != nil {
+		return fmt.Errorf("failed to generate DOT description: %w", err)
+	}
+
+	sortStatements[K](desc.Statements)
+	return renderDOT(w, desc)
+}
+
+func sortStatements[K constraints.Ordered](stmts []statement) {
+	sort.Slice(stmts, func(i, j int) bool {
+		if safeCast[K](stmts[i].Source) != safeCast[K](stmts[j].Source) {
+			return safeCast[K](stmts[i].Source) < safeCast[K](stmts[j].Source)
+		}
+
+		return safeCast[K](stmts[i].Target) < safeCast[K](stmts[j].Target)
+	})
+}
+
+func safeCast[T any](input any) (val T) {
+	val, _ = input.(T)
+
+	return
 }
 
 func generateDOT[K comparable, T any](g graph.Graph[K, T]) (description, error) {
